@@ -258,7 +258,6 @@ func (s *Session) RespondWithError(clientMessage Message, err error) error {
 
 func (s *Server) Run() error {
 	bindTo := fmt.Sprintf("%s:%d", s.config.BindHost, s.config.BindPort)
-	fmt.Printf("listening on %s\n", bindTo)
 
 	var tlsConfig *tls.Config
 
