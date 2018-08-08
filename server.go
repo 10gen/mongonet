@@ -54,7 +54,7 @@ type Server struct {
 	logger        *slogger.Logger
 	workerFactory ServerWorkerFactory
 	killChan      chan struct{}
-	initChan      chan bool
+	initChan      chan error
 	doneChan      chan struct{}
 	net.Addr
 }
@@ -267,16 +267,18 @@ func (s *Server) Run() error {
 
 	if s.config.UseSSL {
 		if len(s.config.SSLKeys) == 0 {
-			s.initChan <- false
-			return fmt.Errorf("no ssl keys configured")
+			returnErr := fmt.Errorf("no ssl keys configured")
+			s.initChan <- returnErr
+			return returnErr
 		}
 
 		certs := []tls.Certificate{}
 		for _, pair := range s.config.SSLKeys {
 			cer, err := tls.LoadX509KeyPair(pair.CertFile, pair.KeyFile)
 			if err != nil {
-				s.initChan <- false
-				return fmt.Errorf("cannot LoadX509KeyPair from %s %s %s", pair.CertFile, pair.KeyFile, err)
+				returnErr := fmt.Errorf("cannot LoadX509KeyPair from %s %s %s", pair.CertFile, pair.KeyFile, err)
+				s.initChan <- returnErr
+				return returnErr
 			}
 			certs = append(certs, cer)
 		}
@@ -292,11 +294,12 @@ func (s *Server) Run() error {
 
 	ln, err := net.Listen("tcp", bindTo)
 	if err != nil {
-		s.initChan <- false
-		return NewStackErrorf("cannot start listening in proxy: %s", err)
+		returnErr := NewStackErrorf("cannot start listening in proxy: %s", err)
+		s.initChan <- returnErr
+		return returnErr
 	}
 	s.Addr = ln.Addr()
-	s.initChan <- true
+	s.initChan <- nil
 
 	defer close(s.doneChan)
 	defer ln.Close()
@@ -345,9 +348,9 @@ func (s *Server) Run() error {
 	}
 }
 
-// InitChannel returns a channel that will send true once the server has started listening, or false
-// if the server failed to start
-func (s *Server) InitChannel() <-chan bool {
+// InitChannel returns a channel that will send nil once the server has started 
+// listening, or an error indicating why the server failed to start
+func (s *Server) InitChannel() <-chan error {
 	return s.initChan
 }
 
@@ -373,7 +376,7 @@ func NewServer(config ServerConfig, factory ServerWorkerFactory) Server {
 		&slogger.Logger{"Server", config.Appenders, 0, nil},
 		factory,
 		make(chan struct{}),
-		make(chan bool, 1),
+		make(chan error, 1),
 		make(chan struct{}),
 		nil,
 	}
