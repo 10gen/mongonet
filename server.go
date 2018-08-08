@@ -54,6 +54,7 @@ type Server struct {
 	logger        *slogger.Logger
 	workerFactory ServerWorkerFactory
 	killChan      chan struct{}
+	initChan      chan bool
 	doneChan      chan struct{}
 	net.Addr
 }
@@ -262,8 +263,11 @@ func (s *Server) Run() error {
 
 	var tlsConfig *tls.Config
 
+	defer close(s.initChan)
+
 	if s.config.UseSSL {
 		if len(s.config.SSLKeys) == 0 {
+			s.initChan <- false
 			return fmt.Errorf("no ssl keys configured")
 		}
 
@@ -271,6 +275,7 @@ func (s *Server) Run() error {
 		for _, pair := range s.config.SSLKeys {
 			cer, err := tls.LoadX509KeyPair(pair.CertFile, pair.KeyFile)
 			if err != nil {
+				s.initChan <- false
 				return fmt.Errorf("cannot LoadX509KeyPair from %s %s %s", pair.CertFile, pair.KeyFile, err)
 			}
 			certs = append(certs, cer)
@@ -287,9 +292,11 @@ func (s *Server) Run() error {
 
 	ln, err := net.Listen("tcp", bindTo)
 	if err != nil {
+		s.initChan <- false
 		return NewStackErrorf("cannot start listening in proxy: %s", err)
 	}
 	s.Addr = ln.Addr()
+	s.initChan <- true
 
 	defer close(s.doneChan)
 	defer ln.Close()
@@ -338,10 +345,15 @@ func (s *Server) Run() error {
 	}
 }
 
+// InitChannel returns a channel that will send true once the server has started listening, or false
+// if the server failed to start
+func (s *Server) InitChannel() <-chan bool {
+	return s.initChan
+}
+
 func (s *Server) Close() {
 	close(s.killChan)
 	<-s.doneChan
-
 }
 
 func (s *Server) NewLogger(prefix string) *slogger.Logger {
@@ -361,6 +373,7 @@ func NewServer(config ServerConfig, factory ServerWorkerFactory) Server {
 		&slogger.Logger{"Server", config.Appenders, 0, nil},
 		factory,
 		make(chan struct{}),
+		make(chan bool, 1),
 		make(chan struct{}),
 		nil,
 	}
