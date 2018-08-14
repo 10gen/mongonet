@@ -188,7 +188,7 @@ func (s *Session) RespondToCommand(clientMessage Message, doc SimpleBSON) error 
 }
 
 func (s *Session) RespondWithError(clientMessage Message, err error) error {
-	s.logger.Logf(slogger.INFO, "RespondWithError %v\n", err)
+	s.logger.Logf(slogger.INFO, "RespondWithError %v", err)
 
 	var errBSON bson.D
 	if err == nil {
