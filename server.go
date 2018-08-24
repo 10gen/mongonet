@@ -45,6 +45,7 @@ type ServerWorker interface {
 
 type ServerWorkerFactory interface {
 	CreateWorker(session *Session) (ServerWorker, error)
+	GetConnection(conn net.Conn) io.ReadWriteCloser
 }
 
 // --------
@@ -73,7 +74,7 @@ func (s *Session) Run(conn net.Conn) {
 	var err error
 	defer conn.Close()
 
-	s.conn = conn
+	s.conn = s.server.workerFactory.GetConnection(conn)
 
 	switch c := conn.(type) {
 	case *tls.Conn:
@@ -356,7 +357,7 @@ func (s *Server) Run() error {
 	}
 }
 
-// InitChannel returns a channel that will send nil once the server has started 
+// InitChannel returns a channel that will send nil once the server has started
 // listening, or an error indicating why the server failed to start
 func (s *Server) InitChannel() <-chan error {
 	return s.initChan
