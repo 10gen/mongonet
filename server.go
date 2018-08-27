@@ -60,6 +60,9 @@ type Server struct {
 }
 
 // ------------------
+func (s *Session) Connection() io.ReadWriteCloser {
+	return s.conn
+}
 
 func (s *Session) Logf(level slogger.Level, messageFmt string, args ...interface{}) (*slogger.Log, []error) {
 	return s.logger.Logf(level, messageFmt, args...)
@@ -356,7 +359,7 @@ func (s *Server) Run() error {
 	}
 }
 
-// InitChannel returns a channel that will send nil once the server has started 
+// InitChannel returns a channel that will send nil once the server has started
 // listening, or an error indicating why the server failed to start
 func (s *Server) InitChannel() <-chan error {
 	return s.initChan
